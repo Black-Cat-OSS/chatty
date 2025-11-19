@@ -35,7 +35,10 @@ export class ApiKeyJwtStrategy extends PassportStrategy(Strategy, 'api-key-jwt')
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_API_KEY_SECRET') || configService.get<string>('JWT_SECRET') || 'your-api-key-secret-key',
+      secretOrKey:
+        configService.get<string>('JWT_API_KEY_SECRET') ||
+        configService.get<string>('JWT_SECRET') ||
+        'your-api-key-secret-key',
     });
   }
 

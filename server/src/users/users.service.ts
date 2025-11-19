@@ -16,7 +16,7 @@ export class UsersService {
   async create(userData: NewUser): Promise<User> {
     // Хешируем пароль перед сохранением
     const hashedPassword = await bcrypt.hash(userData.password, 10);
-    
+
     const [user] = await this.db
       .insert(users)
       .values({
@@ -24,7 +24,7 @@ export class UsersService {
         password: hashedPassword,
       })
       .returning();
-    
+
     this.logger.log(`User created: ${user.email} (${user.id})`);
     return user;
   }
@@ -51,18 +51,14 @@ export class UsersService {
 
   async update(id: string, userData: Partial<NewUser>): Promise<User> {
     const updateData: Partial<NewUser> = { ...userData, updatedAt: new Date() };
-    
+
     // Если обновляется пароль, хешируем его
     if (userData.password) {
       updateData.password = await bcrypt.hash(userData.password, 10);
       this.logger.log(`Password updated for user: ${id}`);
     }
 
-    const [user] = await this.db
-      .update(users)
-      .set(updateData)
-      .where(eq(users.id, id))
-      .returning();
+    const [user] = await this.db.update(users).set(updateData).where(eq(users.id, id)).returning();
 
     if (!user) {
       this.logger.warn(`Attempt to update non-existent user: ${id}`);

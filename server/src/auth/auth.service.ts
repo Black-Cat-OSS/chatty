@@ -1,4 +1,10 @@
-import { Injectable, Inject, NotFoundException, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { DATABASE_CONNECTION, Database } from '../database/database.module';
@@ -47,7 +53,10 @@ export class AuthService {
     });
 
     const refreshToken = this.jwtService.sign(refreshPayload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-refresh-secret-key',
+      secret:
+        this.configService.get<string>('JWT_REFRESH_SECRET') ||
+        this.configService.get<string>('JWT_SECRET') ||
+        'your-refresh-secret-key',
       expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d',
     });
 
@@ -76,7 +85,10 @@ export class AuthService {
   async refreshAccessToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-refresh-secret-key',
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          this.configService.get<string>('JWT_SECRET') ||
+          'your-refresh-secret-key',
       });
 
       if (payload.type !== 'refresh') {
@@ -117,7 +129,9 @@ export class AuthService {
       this.logger.log(`Access token refreshed for user: ${user.email} (${user.id})`);
       return { accessToken };
     } catch (error) {
-      this.logger.warn(`Failed to refresh token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.warn(
+        `Failed to refresh token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
@@ -174,7 +188,7 @@ export class AuthService {
     // Сначала создаём временную запись для получения ID
     // Используем временный ключ, который потом заменим
     const tempKey = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    
+
     const [apiKey] = await this.db
       .insert(apiKeys)
       .values({
@@ -198,7 +212,10 @@ export class AuthService {
     };
 
     const token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_API_KEY_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-api-key-secret-key',
+      secret:
+        this.configService.get<string>('JWT_API_KEY_SECRET') ||
+        this.configService.get<string>('JWT_SECRET') ||
+        'your-api-key-secret-key',
       expiresIn: expiresInDays ? `${expiresInDays}d` : '365d', // По умолчанию год
     });
 
@@ -209,7 +226,9 @@ export class AuthService {
       .where(eq(apiKeys.id, apiKey.id))
       .returning();
 
-    this.logger.log(`API key generated: ${updatedApiKey.id}${name ? ` (${name})` : ''}${userId ? ` for user ${userId}` : ''}`);
+    this.logger.log(
+      `API key generated: ${updatedApiKey.id}${name ? ` (${name})` : ''}${userId ? ` for user ${userId}` : ''}`,
+    );
 
     return {
       apiKey: updatedApiKey,
@@ -249,7 +268,10 @@ export class AuthService {
     // Пытаемся декодировать как JWT
     try {
       const payload = this.jwtService.verify<ApiKeyJwtPayload>(key, {
-        secret: this.configService.get<string>('JWT_API_KEY_SECRET') || this.configService.get<string>('JWT_SECRET') || 'your-api-key-secret-key',
+        secret:
+          this.configService.get<string>('JWT_API_KEY_SECRET') ||
+          this.configService.get<string>('JWT_SECRET') ||
+          'your-api-key-secret-key',
       });
 
       if (payload.type !== 'api-key') {
@@ -273,7 +295,10 @@ export class AuthService {
         return null;
       }
 
-      await this.db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, apiKey.id));
+      await this.db
+        .update(apiKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(apiKeys.id, apiKey.id));
 
       return apiKey;
     }

@@ -11,7 +11,14 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -55,21 +62,25 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 200, description: 'Login successful', schema: {
-    type: 'object',
-    properties: {
-      accessToken: { type: 'string' },
-      refreshToken: { type: 'string' },
-      user: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          email: { type: 'string' },
-          username: { type: 'string' },
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    schema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string' },
+        refreshToken: { type: 'string' },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            email: { type: 'string' },
+            username: { type: 'string' },
+          },
         },
       },
     },
-  }})
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   @UsePipes(new ZodValidationPipe(LoginSchema))
   async login(@Body() data: z.infer<typeof LoginSchema>) {
@@ -104,12 +115,16 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 200, description: 'Token refreshed successfully', schema: {
-    type: 'object',
-    properties: {
-      accessToken: { type: 'string' },
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string' },
+      },
     },
-  }})
+  })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   @UsePipes(new ZodValidationPipe(RefreshTokenSchema))
   async refresh(@Body() data: z.infer<typeof RefreshTokenSchema>) {
@@ -124,8 +139,8 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async logout(@Body() data: { refreshToken?: string }, @Req() req: Request) {
     // Получаем refresh token из body или из заголовка
-    const refreshToken = data.refreshToken || req.headers['x-refresh-token'] as string;
-    
+    const refreshToken = data.refreshToken || (req.headers['x-refresh-token'] as string);
+
     if (refreshToken) {
       await this.authService.revokeRefreshToken(refreshToken);
     }
@@ -144,18 +159,20 @@ export class AuthController {
         name: { type: 'string', description: 'Optional name for the API key' },
         userId: { type: 'string', format: 'uuid', description: 'Optional user ID' },
         expiresInDays: { type: 'number', description: 'Optional expiration in days' },
-        scopes: { type: 'array', items: { type: 'string' }, description: 'Optional scopes/permissions' },
+        scopes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional scopes/permissions',
+        },
       },
     },
   })
   @ApiResponse({ status: 201, description: 'API key created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @UsePipes(new ZodValidationPipe(GenerateApiKeySchema))
-  async generateApiKey(
-    @Body() data: z.infer<typeof GenerateApiKeySchema>,
-    @Req() req: Request,
-  ) {
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || req.socket.remoteAddress;
+  async generateApiKey(@Body() data: z.infer<typeof GenerateApiKeySchema>, @Req() req: Request) {
+    const ipAddress =
+      req.ip || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
     const result = await this.authService.generateApiKey(
