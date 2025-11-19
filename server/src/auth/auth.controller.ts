@@ -62,7 +62,12 @@ export class AuthController {
       type: 'object',
       required: ['username', 'password'],
       properties: {
-        username: { type: 'string', minLength: 3, maxLength: 100, description: 'Username (must be unique)' },
+        username: {
+          type: 'string',
+          minLength: 3,
+          maxLength: 100,
+          description: 'Username (must be unique)',
+        },
         password: { type: 'string', minLength: 6, description: 'User password' },
       },
     },
