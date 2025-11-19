@@ -1,5 +1,12 @@
 import { Controller, Get, Post, Body, Param, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiSecurity } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBody,
+  ApiSecurity,
+} from '@nestjs/swagger';
 import { RoomsService } from './rooms.service';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
