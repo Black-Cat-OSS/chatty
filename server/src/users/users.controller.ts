@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes } from '@ne
 import { UsersService } from './users.service';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { NewUser } from '../database/schema/users';
 
 // Zod схемы для валидации
 const CreateUserSchema = z.object({
@@ -19,7 +20,7 @@ export class UsersController {
   @Post()
   @UsePipes(new ZodValidationPipe(CreateUserSchema))
   async create(@Body() createUserDto: z.infer<typeof CreateUserSchema>) {
-    return this.usersService.create(createUserDto);
+    return this.usersService.create(createUserDto as NewUser);
   }
 
   @Get()
