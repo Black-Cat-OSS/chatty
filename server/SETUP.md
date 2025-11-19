@@ -150,9 +150,21 @@ pnpm run db:studio
 Создайте `.env` файл в корне папки `server/`:
 
 ```env
+# Database
 DATABASE_URL=postgresql://user:password@localhost:5432/chatty
+
+# Server
 PORT=3000
 NODE_ENV=development
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-in-production
+JWT_REFRESH_EXPIRES_IN=7d
+
+# API Key JWT (более защищённый, использует отдельный секрет)
+JWT_API_KEY_SECRET=your-super-secret-api-key-jwt-key-change-in-production
 ```
 
 ## Разработка

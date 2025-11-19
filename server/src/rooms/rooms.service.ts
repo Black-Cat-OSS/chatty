@@ -1,10 +1,12 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, Logger } from '@nestjs/common';
 import { DATABASE_CONNECTION, Database } from '../database/database.module';
 import { rooms, Room, NewRoom } from '../database/schema/rooms';
 import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class RoomsService {
+  private readonly logger = new Logger(RoomsService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database,
@@ -20,6 +22,7 @@ export class RoomsService {
       })
       .returning();
 
+    this.logger.log(`Room created: ${room.name} (${room.id})`);
     return room;
   }
 
@@ -31,6 +34,7 @@ export class RoomsService {
     const [room] = await this.db.select().from(rooms).where(eq(rooms.id, id)).limit(1);
 
     if (!room) {
+      this.logger.warn(`Attempt to access non-existent room: ${id}`);
       throw new NotFoundException(`Room with ID ${id} not found`);
     }
 

@@ -85,10 +85,13 @@ API использует URI версионирование. Все endpoints д
 ### App
 - `GET /api/v1/` - Приветственное сообщение
 - `GET /api/v1/health` - Проверка здоровья сервера
-- `GET /api/v1/protected` - Пример защищенного endpoint (требует API ключ)
+- `GET /api/v1/protected` - Пример защищенного endpoint (требует JWT или API ключ)
 
 ### Auth
-- `POST /api/v1/auth/api-keys` - Создать новый API ключ (публичный)
+- `POST /api/v1/auth/login` - Вход с email и password (получить JWT токены)
+- `POST /api/v1/auth/refresh` - Обновить access токен используя refresh токен
+- `POST /api/v1/auth/logout` - Выход и отзыв refresh токена
+- `POST /api/v1/auth/api-keys` - Создать новый API ключ (JWT-based, публичный)
 - `GET /api/v1/auth/api-keys/:userId` - Получить все ключи пользователя
 - `DELETE /api/v1/auth/api-keys/:id` - Отозвать API ключ
 - `DELETE /api/v1/auth/api-keys/:id/delete` - Удалить API ключ
@@ -110,6 +113,84 @@ API использует URI версионирование. Все endpoints д
 - `message` - Отправка сообщения
 - `join-room` - Присоединение к комнате
 - `leave-room` - Выход из комнаты
+
+## Аутентификация
+
+API поддерживает две стратегии аутентификации:
+
+### 1. JWT (Access + Refresh Tokens)
+
+**Логин:**
+```bash
+POST /api/v1/auth/login
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+**Ответ:**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { "id": "...", "email": "...", "username": "..." }
+}
+```
+
+**Обновление токена:**
+```bash
+POST /api/v1/auth/refresh
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Использование:**
+```bash
+Authorization: Bearer <accessToken>
+```
+
+### 2. API Key (JWT-based, более защищённый)
+
+**Создание API ключа:**
+```bash
+POST /api/v1/auth/api-keys
+{
+  "name": "My API Key",
+  "userId": "optional-user-id",
+  "expiresInDays": 30,
+  "scopes": ["read", "write"]
+}
+```
+
+**Ответ:**
+```json
+{
+  "id": "uuid",
+  "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", // JWT токен
+  "name": "My API Key",
+  "createdAt": "2024-01-01T00:00:00Z",
+  "expiresAt": "2024-01-31T00:00:00Z",
+  "scopes": ["read", "write"]
+}
+```
+
+**Использование:**
+```bash
+# Вариант 1: Заголовок X-API-Key
+X-API-Key: <jwt-token>
+
+# Вариант 2: Authorization Bearer
+Authorization: Bearer <jwt-token>
+```
+
+**Преимущества JWT-based API ключей:**
+- Подпись и проверка целостности
+- Встроенное время истечения
+- Поддержка scopes (разрешений)
+- Отслеживание IP и User-Agent
+- Возможность отзыва через базу данных
 
 ## Валидация
 
