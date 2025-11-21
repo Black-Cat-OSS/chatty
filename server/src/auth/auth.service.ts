@@ -223,12 +223,12 @@ export class AuthService {
    * Генерирует новый API ключ как JWT токен
    */
   async generateApiKey(
-    name?: string,
-    userId?: string,
-    expiresInDays?: number,
-    scopes?: string[],
-    ipAddress?: string,
-    userAgent?: string,
+    name: string | undefined,
+    userId: string,
+    expiresInDays: number | undefined,
+    scopes: string[] | undefined,
+    ipAddress: string | undefined,
+    userAgent: string | undefined,
   ): Promise<{ apiKey: ApiKey; token: string }> {
     const expiresAt = expiresInDays
       ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
@@ -237,6 +237,10 @@ export class AuthService {
     // Сначала создаём временную запись для получения ID
     // Используем временный ключ, который потом заменим
     const tempKey = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    // Устанавливаем permissions по умолчанию
+    const defaultPermissions = ['allow-all'];
+    const permissions = JSON.stringify(defaultPermissions);
 
     const [apiKey] = await this.db
       .insert(apiKeys)
@@ -249,6 +253,7 @@ export class AuthService {
         ipAddress: ipAddress || null,
         userAgent: userAgent || null,
         scopes: scopes ? JSON.stringify(scopes) : null,
+        permissions: permissions,
       })
       .returning();
 
@@ -361,34 +366,58 @@ export class AuthService {
   }
 
   /**
-   * Отзывает API ключ
+   * Отзывает API ключ (только если он принадлежит пользователю)
    */
-  async revokeApiKey(keyId: string): Promise<void> {
+  async revokeApiKey(keyId: string, userId?: string): Promise<void> {
+    // Сначала проверяем, существует ли ключ
     const [apiKey] = await this.db
-      .update(apiKeys)
-      .set({ isActive: false })
+      .select()
+      .from(apiKeys)
       .where(eq(apiKeys.id, keyId))
-      .returning();
+      .limit(1);
 
     if (!apiKey) {
       this.logger.warn(`Attempt to revoke non-existent API key: ${keyId}`);
       throw new NotFoundException(`API key with ID ${keyId} not found`);
     }
 
-    this.logger.log(`API key revoked: ${keyId}`);
+    // Если передан userId, проверяем, что ключ принадлежит этому пользователю
+    if (userId && apiKey.userId !== userId) {
+      this.logger.warn(`User ${userId} attempted to revoke API key ${keyId} that belongs to ${apiKey.userId}`);
+      throw new UnauthorizedException('You can only revoke your own API keys');
+    }
+
+    // Отзываем ключ
+    await this.db.update(apiKeys).set({ isActive: false }).where(eq(apiKeys.id, keyId));
+
+    this.logger.log(`API key revoked: ${keyId}${userId ? ` by user ${userId}` : ''}`);
   }
 
   /**
-   * Удаляет API ключ
+   * Удаляет API ключ (только если он принадлежит пользователю)
    */
-  async deleteApiKey(keyId: string): Promise<void> {
-    const [deletedKey] = await this.db.delete(apiKeys).where(eq(apiKeys.id, keyId)).returning();
+  async deleteApiKey(keyId: string, userId?: string): Promise<void> {
+    // Сначала проверяем, существует ли ключ
+    const [apiKey] = await this.db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.id, keyId))
+      .limit(1);
 
-    if (!deletedKey) {
+    if (!apiKey) {
       this.logger.warn(`Attempt to delete non-existent API key: ${keyId}`);
       throw new NotFoundException(`API key with ID ${keyId} not found`);
     }
 
-    this.logger.log(`API key deleted: ${keyId}`);
+    // Если передан userId, проверяем, что ключ принадлежит этому пользователю
+    if (userId && apiKey.userId !== userId) {
+      this.logger.warn(`User ${userId} attempted to delete API key ${keyId} that belongs to ${apiKey.userId}`);
+      throw new UnauthorizedException('You can only delete your own API keys');
+    }
+
+    // Удаляем ключ
+    await this.db.delete(apiKeys).where(eq(apiKeys.id, keyId));
+
+    this.logger.log(`API key deleted: ${keyId}${userId ? ` by user ${userId}` : ''}`);
   }
 }

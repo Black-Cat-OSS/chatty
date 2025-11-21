@@ -11,10 +11,13 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
-  // Enable CORS for Socket.io and API
+  // Enable CORS for Socket.io and API - разрешить все запросы
   app.enableCors({
     origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: ['*'],
+    exposedHeaders: ['*'],
   });
 
   // API Versioning

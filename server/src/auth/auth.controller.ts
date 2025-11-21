@@ -23,6 +23,7 @@ import { AuthService } from './auth.service';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { Public } from './decorators/public.decorator';
+import { GetUser } from './decorators/get-user.decorator';
 import { Request } from 'express';
 
 const LoginSchema = z.object({
@@ -36,7 +37,6 @@ const RefreshTokenSchema = z.object({
 
 const GenerateApiKeySchema = z.object({
   name: z.string().optional(),
-  userId: z.string().uuid().optional(),
   expiresInDays: z.number().int().positive().optional(),
   scopes: z.array(z.string()).optional(),
 });
@@ -200,16 +200,15 @@ export class AuthController {
 
   // ========== API Key Management ==========
 
-  @Public()
   @Post('api-keys')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Generate a new API key (JWT-based)' })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate a new API key (requires authentication)' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
         name: { type: 'string', description: 'Optional name for the API key' },
-        userId: { type: 'string', format: 'uuid', description: 'Optional user ID' },
         expiresInDays: { type: 'number', description: 'Optional expiration in days' },
         scopes: {
           type: 'array',
@@ -221,15 +220,26 @@ export class AuthController {
   })
   @ApiResponse({ status: 201, description: 'API key created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UsePipes(new ZodValidationPipe(GenerateApiKeySchema))
-  async generateApiKey(@Body() data: z.infer<typeof GenerateApiKeySchema>, @Req() req: Request) {
+  async generateApiKey(
+    @Body() data: z.infer<typeof GenerateApiKeySchema>,
+    @GetUser() user: { userId: string; email?: string; username?: string },
+    @Req() req: Request,
+  ) {
+    // Проверяем, что пользователь авторизован
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
     const ipAddress =
       req.ip || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
+    // API ключ автоматически привязывается к авторизованному пользователю
     const result = await this.authService.generateApiKey(
       data.name,
-      data.userId,
+      user.userId, // Автоматически берётся из авторизованного пользователя
       data.expiresInDays,
       data.scopes,
       ipAddress,
@@ -244,17 +254,23 @@ export class AuthController {
       createdAt: result.apiKey.createdAt,
       expiresAt: result.apiKey.expiresAt,
       scopes: data.scopes || [],
+      userId: result.apiKey.userId,
     };
   }
 
-  @Get('api-keys/:userId')
+  @Get('api-keys')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all API keys for a user' })
-  @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
+  @ApiOperation({ summary: 'Get all API keys for the authenticated user' })
   @ApiResponse({ status: 200, description: 'List of API keys' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getUserApiKeys(@Param('userId') userId: string) {
-    const keys = await this.authService.getUserApiKeys(userId);
+  async getUserApiKeys(@GetUser() user: { userId: string; email?: string; username?: string }) {
+    // Проверяем, что пользователь авторизован
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    // Получаем ключи только для авторизованного пользователя
+    const keys = await this.authService.getUserApiKeys(user.userId);
     // Не возвращаем сами ключи, только метаданные
     return keys.map((key) => ({
       id: key.id,
@@ -270,24 +286,44 @@ export class AuthController {
   @Delete('api-keys/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Revoke an API key' })
+  @ApiOperation({ summary: 'Revoke an API key (only your own)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'API key revoked successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - can only revoke your own keys' })
   @ApiResponse({ status: 404, description: 'API key not found' })
-  async revokeApiKey(@Param('id') id: string) {
-    await this.authService.revokeApiKey(id);
+  async revokeApiKey(
+    @Param('id') id: string,
+    @GetUser() user: { userId: string; email?: string; username?: string },
+  ) {
+    // Проверяем, что пользователь авторизован
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    // Отзываем ключ только если он принадлежит пользователю
+    await this.authService.revokeApiKey(id, user.userId);
   }
 
   @Delete('api-keys/:id/delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Permanently delete an API key' })
+  @ApiOperation({ summary: 'Permanently delete an API key (only your own)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'API key deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - can only delete your own keys' })
   @ApiResponse({ status: 404, description: 'API key not found' })
-  async deleteApiKey(@Param('id') id: string) {
-    await this.authService.deleteApiKey(id);
+  async deleteApiKey(
+    @Param('id') id: string,
+    @GetUser() user: { userId: string; email?: string; username?: string },
+  ) {
+    // Проверяем, что пользователь авторизован
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    // Удаляем ключ только если он принадлежит пользователю
+    await this.authService.deleteApiKey(id, user.userId);
   }
 }
