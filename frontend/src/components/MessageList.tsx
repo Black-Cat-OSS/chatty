@@ -1,7 +1,13 @@
 import './MessageList.css'
+import { Message } from '../types'
 
-function MessageList({ messages, currentUsername }) {
-  const formatTime = (timestamp) => {
+interface MessageListProps {
+  messages: Message[]
+  currentUsername: string
+}
+
+function MessageList({ messages, currentUsername }: MessageListProps) {
+  const formatTime = (timestamp: string) => {
     if (!timestamp) return ''
     const date = new Date(timestamp)
     return date.toLocaleTimeString('ru-RU', {
@@ -50,3 +56,4 @@ function MessageList({ messages, currentUsername }) {
 }
 
 export default MessageList
+

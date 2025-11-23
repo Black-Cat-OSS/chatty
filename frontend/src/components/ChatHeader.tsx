@@ -1,10 +1,25 @@
 import './ChatHeader.css'
+import { Room } from '../types'
 
-function ChatHeader({ username, users, isConnected, onLogout }) {
+interface ChatHeaderProps {
+  username: string
+  users: string[]
+  isConnected: boolean
+  onLogout: () => void
+  room: Room | null
+  onBack?: () => void
+}
+
+function ChatHeader({ username, users, isConnected, onLogout, room, onBack }: ChatHeaderProps) {
   return (
     <div className='chat-header'>
       <div className='header-left'>
-        <h2>Chatty</h2>
+        {onBack && (
+          <button onClick={onBack} className='back-button'>
+            ← Назад
+          </button>
+        )}
+        <h2>{room ? room.name : 'Chatty'}</h2>
         <div className='connection-status'>
           <span
             className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}
@@ -28,3 +43,4 @@ function ChatHeader({ username, users, isConnected, onLogout }) {
 }
 
 export default ChatHeader
+

@@ -25,7 +25,7 @@ export class UsersService {
       })
       .returning();
 
-    this.logger.log(`User created: ${user.email} (${user.id})`);
+    this.logger.log(`User created: ${user.username} (${user.id})`);
     return user;
   }
 
@@ -41,12 +41,6 @@ export class UsersService {
     }
 
     return user;
-  }
-
-  async findByEmail(email: string): Promise<User | null> {
-    const [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
-
-    return user || null;
   }
 
   async update(id: string, userData: Partial<NewUser>): Promise<User> {
@@ -65,7 +59,7 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    this.logger.log(`User updated: ${user.email} (${user.id})`);
+    this.logger.log(`User updated: ${user.username} (${user.id})`);
     return user;
   }
 
@@ -77,6 +71,6 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    this.logger.log(`User deleted: ${deletedUser.email} (${id})`);
+    this.logger.log(`User deleted: ${deletedUser.username} (${id})`);
   }
 }

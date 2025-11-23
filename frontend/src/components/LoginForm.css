@@ -90,3 +90,31 @@
   transform: translateY(0);
 }
 
+.login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.switch-button {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  color: #667eea;
+  border: none;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  margin-top: 10px;
+}
+
+.switch-button:hover:not(:disabled) {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+.switch-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

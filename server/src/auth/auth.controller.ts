@@ -27,7 +27,7 @@ import { GetUser } from './decorators/get-user.decorator';
 import { Request } from 'express';
 
 const LoginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(3).max(100),
   password: z.string().min(6),
 });
 
@@ -87,6 +87,17 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @UsePipes(new ZodValidationPipe(RegisterSchema))
   async register(@Body() data: z.infer<typeof RegisterSchema>) {
+    // Логируем полученные данные для отладки
+    console.log('Register request received:', { username: data.username, hasPassword: !!data.password });
+    
+    if (!data.username) {
+      throw new UnauthorizedException('Username is required');
+    }
+    
+    if (!data.password) {
+      throw new UnauthorizedException('Password is required');
+    }
+
     const user = await this.authService.register(data.username, data.password);
 
     return {
@@ -100,13 +111,13 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiOperation({ summary: 'Login with username and password' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['email', 'password'],
+      required: ['username', 'password'],
       properties: {
-        email: { type: 'string', format: 'email', description: 'User email' },
+        username: { type: 'string', minLength: 3, maxLength: 100, description: 'Username' },
         password: { type: 'string', minLength: 6, description: 'User password' },
       },
     },
@@ -123,7 +134,6 @@ export class AuthController {
           type: 'object',
           properties: {
             id: { type: 'string' },
-            email: { type: 'string' },
             username: { type: 'string' },
           },
         },
@@ -133,7 +143,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   @UsePipes(new ZodValidationPipe(LoginSchema))
   async login(@Body() data: z.infer<typeof LoginSchema>) {
-    const user = await this.authService.validateUser(data.email, data.password);
+    const user = await this.authService.validateUser(data.username, data.password);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -145,7 +155,6 @@ export class AuthController {
       ...tokens,
       user: {
         id: user.id,
-        email: user.email,
         username: user.username,
       },
     };
@@ -224,7 +233,7 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(GenerateApiKeySchema))
   async generateApiKey(
     @Body() data: z.infer<typeof GenerateApiKeySchema>,
-    @GetUser() user: { userId: string; email?: string; username?: string },
+    @GetUser() user: { userId: string; username?: string },
     @Req() req: Request,
   ) {
     // Проверяем, что пользователь авторизован
@@ -263,7 +272,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Get all API keys for the authenticated user' })
   @ApiResponse({ status: 200, description: 'List of API keys' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getUserApiKeys(@GetUser() user: { userId: string; email?: string; username?: string }) {
+  async getUserApiKeys(@GetUser() user: { userId: string; username?: string }) {
     // Проверяем, что пользователь авторизован
     if (!user || !user.userId) {
       throw new UnauthorizedException('User not authenticated');
@@ -294,7 +303,7 @@ export class AuthController {
   @ApiResponse({ status: 404, description: 'API key not found' })
   async revokeApiKey(
     @Param('id') id: string,
-    @GetUser() user: { userId: string; email?: string; username?: string },
+    @GetUser() user: { userId: string; username?: string },
   ) {
     // Проверяем, что пользователь авторизован
     if (!user || !user.userId) {
@@ -316,7 +325,7 @@ export class AuthController {
   @ApiResponse({ status: 404, description: 'API key not found' })
   async deleteApiKey(
     @Param('id') id: string,
-    @GetUser() user: { userId: string; email?: string; username?: string },
+    @GetUser() user: { userId: string; username?: string },
   ) {
     // Проверяем, что пользователь авторизован
     if (!user || !user.userId) {

@@ -1,16 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
 import './MessageInput.css'
 
-function MessageInput({ onSendMessage, disabled }) {
+interface MessageInputProps {
+  onSendMessage: (message: string) => void
+  disabled: boolean
+}
+
+function MessageInput({ onSendMessage, disabled }: MessageInputProps) {
   const [message, setMessage] = useState('')
-  const inputRef = useRef(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Фокус на инпут при загрузке
     inputRef.current?.focus()
   }, [])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (message.trim() && !disabled) {
       onSendMessage(message)
@@ -19,7 +24,7 @@ function MessageInput({ onSendMessage, disabled }) {
     }
   }
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Отправка по Enter, но не Shift+Enter
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -65,3 +70,4 @@ function MessageInput({ onSendMessage, disabled }) {
 }
 
 export default MessageInput
+

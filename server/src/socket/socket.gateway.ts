@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { AuthService } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { RoomsService } from '../rooms/rooms.service';
 
 const MessageSchema = z.object({
   content: z.string().min(1).max(1000),
@@ -49,6 +50,7 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     private authService: AuthService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private roomsService: RoomsService,
   ) {}
 
   afterInit(server: Server) {
@@ -151,7 +153,7 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   }
 
   @SubscribeMessage('message')
-  handleMessage(@MessageBody() data: unknown, @ConnectedSocket() client: AuthenticatedSocket) {
+  async handleMessage(@MessageBody() data: unknown, @ConnectedSocket() client: AuthenticatedSocket) {
     try {
       // Поддерживаем оба формата для обратной совместимости
       const messageData = typeof data === 'object' && data !== null ? data : {};
@@ -178,7 +180,24 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect, 
           authType: clientInfo?.authType,
         };
 
+        // Сохраняем сообщение в БД, если указана комната
         if (parsed.room) {
+          try {
+            const savedMessage = await this.roomsService.createMessage({
+              roomId: parsed.room,
+              userId: clientInfo?.userId || null,
+              username,
+              content: parsed.message,
+            });
+            this.logger.log(`Message saved to database: ${savedMessage.id} in room ${parsed.room}`);
+          } catch (error) {
+            this.logger.error(
+              `Failed to save message to database: ${error.message}`,
+              error.stack,
+            );
+            // Продолжаем отправку сообщения даже если сохранение не удалось
+          }
+
           this.server.to(parsed.room).emit('message', messagePayload);
           this.logger.log(
             `Message in room "${parsed.room}" from ${username} (${client.id}): ${parsed.message}`,
@@ -202,7 +221,24 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         authType: clientInfo?.authType,
       };
 
+      // Сохраняем сообщение в БД, если указана комната
       if (parsed.room) {
+        try {
+          const savedMessage = await this.roomsService.createMessage({
+            roomId: parsed.room,
+            userId: clientInfo?.userId || null,
+            username: from,
+            content: parsed.content,
+          });
+          this.logger.debug(`Message saved to database: ${savedMessage.id}`);
+        } catch (error) {
+          this.logger.error(
+            `Failed to save message to database: ${error.message}`,
+            error.stack,
+          );
+          // Продолжаем отправку сообщения даже если сохранение не удалось
+        }
+
         this.server.to(parsed.room).emit('message', messagePayload);
         this.logger.log(
           `Message in room "${parsed.room}" from ${from} (${client.id}): ${parsed.content}`,

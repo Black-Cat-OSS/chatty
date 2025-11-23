@@ -14,7 +14,6 @@ import { NewUser } from '../database/schema/users';
 
 // Zod схемы для валидации
 const CreateUserSchema = z.object({
-  email: z.string().email(),
   username: z.string().min(3).max(100),
   password: z.string().min(6),
 });
@@ -33,9 +32,8 @@ export class UsersController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['email', 'username', 'password'],
+      required: ['username', 'password'],
       properties: {
-        email: { type: 'string', format: 'email', description: 'User email' },
         username: { type: 'string', minLength: 3, maxLength: 100, description: 'Username' },
         password: { type: 'string', minLength: 6, description: 'User password' },
       },
@@ -80,7 +78,6 @@ export class UsersController {
     schema: {
       type: 'object',
       properties: {
-        email: { type: 'string', format: 'email' },
         username: { type: 'string', minLength: 3, maxLength: 100 },
         password: { type: 'string', minLength: 6 },
       },

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { GetApiKey } from '../auth/decorators/api-key.decorator';
 import { ApiKey } from '../database/schema/api-keys';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 const CreateRoomSchema = z.object({
   name: z.string().min(3).max(150),
@@ -43,13 +44,16 @@ export class RoomsController {
   @ApiResponse({ status: 201, description: 'Room created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @UsePipes(new ZodValidationPipe(CreateRoomSchema))
-  async create(@Body() body: z.infer<typeof CreateRoomSchema>, @GetApiKey() apiKey?: ApiKey) {
+  async create(
+    @Body(new ZodValidationPipe(CreateRoomSchema)) body: z.infer<typeof CreateRoomSchema>,
+    @GetUser() user?: { userId: string; username?: string },
+    @GetApiKey() apiKey?: ApiKey,
+  ) {
     return this.roomsService.create({
       name: body.name,
       description: body.description ?? null,
       isPrivate: body.isPrivate ?? false,
-      createdBy: apiKey?.userId ?? null,
+      createdBy: user?.userId ?? apiKey?.userId ?? null,
     });
   }
 
@@ -61,6 +65,37 @@ export class RoomsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async findAll() {
     return this.roomsService.findAll();
+  }
+
+  @Get('my')
+  @ApiOperation({ summary: 'Get rooms for the authenticated user' })
+  @ApiSecurity('api-key')
+  @ApiSecurity('bearer')
+  @ApiResponse({ status: 200, description: 'List of user rooms' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async findMyRooms(@GetUser() user: { userId: string; username?: string }) {
+    if (!user || !user.userId) {
+      return this.roomsService.findAll(); // Если не авторизован, возвращаем все публичные комнаты
+    }
+    return this.roomsService.findByUserId(user.userId);
+  }
+
+  @Get(':id/messages')
+  @ApiOperation({ summary: 'Get room messages history' })
+  @ApiSecurity('api-key')
+  @ApiSecurity('bearer')
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Room messages history' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Room not found' })
+  async getRoomMessages(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    const messageLimit = limit ? parseInt(limit, 10) : 100;
+    const messages = await this.roomsService.getRoomMessages(id, messageLimit);
+    // Возвращаем в обратном порядке (старые первыми)
+    return messages.reverse();
   }
 
   @Get(':id')

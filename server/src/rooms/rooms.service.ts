@@ -1,7 +1,8 @@
 import { Injectable, Inject, NotFoundException, Logger } from '@nestjs/common';
 import { DATABASE_CONNECTION, Database } from '../database/database.module';
 import { rooms, Room, NewRoom } from '../database/schema/rooms';
-import { eq } from 'drizzle-orm';
+import { messages, Message, NewMessage } from '../database/schema/messages';
+import { eq, or, desc } from 'drizzle-orm';
 
 @Injectable()
 export class RoomsService {
@@ -39,5 +40,39 @@ export class RoomsService {
     }
 
     return room;
+  }
+
+  async findByUserId(userId: string): Promise<Room[]> {
+    // Получаем комнаты, созданные пользователем, и все публичные комнаты
+    return this.db
+      .select()
+      .from(rooms)
+      .where(or(eq(rooms.createdBy, userId), eq(rooms.isPrivate, false)))
+      .orderBy(rooms.createdAt);
+  }
+
+  async createMessage(data: NewMessage): Promise<Message> {
+    const [message] = await this.db
+      .insert(messages)
+      .values({
+        ...data,
+        userId: data.userId ?? null,
+      })
+      .returning();
+
+    this.logger.log(`Message created in room ${data.roomId} by ${data.username}`);
+    return message;
+  }
+
+  async getRoomMessages(roomId: string, limit: number = 100): Promise<Message[]> {
+    // Проверяем, что комната существует
+    await this.findOne(roomId);
+
+    return this.db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, roomId))
+      .orderBy(desc(messages.createdAt))
+      .limit(limit);
   }
 }

@@ -1,13 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
+import { Socket } from 'socket.io-client'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
 import ChatHeader from './ChatHeader'
+import { apiRequestJson } from '../utils/api'
 import './ChatContainer.css'
+import { Room, Message } from '../types'
 
-function ChatContainer({ socket, username, isConnected, onLogout }) {
-  const [messages, setMessages] = useState([])
-  const [users, setUsers] = useState([])
-  const messagesEndRef = useRef(null)
+interface ChatContainerProps {
+  socket: Socket | null
+  username: string
+  isConnected: boolean
+  onLogout: () => void
+  room: Room | null
+  onBack: () => void
+}
+
+interface MessageHistoryItem {
+  id: string
+  username: string
+  content: string
+  createdAt: string
+}
+
+function ChatContainer({ socket, username, isConnected, onLogout, room, onBack }: ChatContainerProps) {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [users, setUsers] = useState<string[]>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -17,11 +36,36 @@ function ChatContainer({ socket, username, isConnected, onLogout }) {
     scrollToBottom()
   }, [messages])
 
+  // Загружаем историю сообщений при входе в комнату
+  useEffect(() => {
+    if (!room?.id) return
+
+    const loadMessageHistory = async () => {
+      try {
+        const history = await apiRequestJson<MessageHistoryItem[]>(`/rooms/${room.id}/messages`)
+        // Преобразуем формат сообщений из БД в формат для UI
+        const formattedMessages: Message[] = history.map((msg) => ({
+          id: msg.id,
+          username: msg.username,
+          message: msg.content,
+          timestamp: msg.createdAt,
+          type: 'user' as const,
+        }))
+        setMessages(formattedMessages)
+      } catch (error) {
+        console.error('Failed to load message history:', error)
+        // Не показываем ошибку пользователю, просто продолжаем без истории
+      }
+    }
+
+    loadMessageHistory()
+  }, [room?.id])
+
   useEffect(() => {
     if (!socket) return
 
     // Получение новых сообщений
-    socket.on('message', (data) => {
+    socket.on('message', (data: { username: string; message: string; timestamp?: string }) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -35,7 +79,7 @@ function ChatContainer({ socket, username, isConnected, onLogout }) {
     })
 
     // Получение системных сообщений
-    socket.on('system', (data) => {
+    socket.on('system', (data: { message: string; timestamp?: string }) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -48,12 +92,12 @@ function ChatContainer({ socket, username, isConnected, onLogout }) {
     })
 
     // Получение списка пользователей
-    socket.on('users', (data) => {
+    socket.on('users', (data: { users?: string[] }) => {
       setUsers(data.users || [])
     })
 
     // Получение истории сообщений при подключении
-    socket.on('messageHistory', (data) => {
+    socket.on('messageHistory', (data: { messages?: Message[] }) => {
       if (data.messages && Array.isArray(data.messages)) {
         setMessages(data.messages)
       }
@@ -67,11 +111,12 @@ function ChatContainer({ socket, username, isConnected, onLogout }) {
     }
   }, [socket])
 
-  const handleSendMessage = (message) => {
-    if (socket && message.trim()) {
+  const handleSendMessage = (message: string) => {
+    if (socket && message.trim() && room?.id) {
       socket.emit('message', {
         username,
         message: message.trim(),
+        room: room.id,
         timestamp: new Date().toISOString(),
       })
     }
@@ -84,6 +129,8 @@ function ChatContainer({ socket, username, isConnected, onLogout }) {
         users={users}
         isConnected={isConnected}
         onLogout={onLogout}
+        room={room}
+        onBack={onBack}
       />
       <MessageList messages={messages} currentUsername={username} />
       <div ref={messagesEndRef} />
@@ -93,3 +140,4 @@ function ChatContainer({ socket, username, isConnected, onLogout }) {
 }
 
 export default ChatContainer
+

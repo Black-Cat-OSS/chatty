@@ -36,14 +36,12 @@ export class AuthService {
   async generateTokens(user: User) {
     const payload: JwtPayload = {
       sub: user.id,
-      email: user.email,
       username: user.username,
       type: 'access',
     };
 
     const refreshPayload: JwtPayload = {
       sub: user.id,
-      email: user.email,
       username: user.username,
       type: 'refresh',
     };
@@ -72,7 +70,7 @@ export class AuthService {
       isRevoked: false,
     });
 
-    this.logger.log(`Tokens generated for user: ${user.email} (${user.id})`);
+    this.logger.log(`Tokens generated for user: ${user.username} (${user.id})`);
 
     return {
       accessToken,
@@ -117,7 +115,6 @@ export class AuthService {
       // Генерируем новый access токен
       const accessPayload: JwtPayload = {
         sub: user.id,
-        email: user.email,
         username: user.username,
         type: 'access',
       };
@@ -127,7 +124,7 @@ export class AuthService {
         expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
       });
 
-      this.logger.log(`Access token refreshed for user: ${user.email} (${user.id})`);
+      this.logger.log(`Access token refreshed for user: ${user.username} (${user.id})`);
       return { accessToken };
     } catch (error) {
       this.logger.warn(
@@ -152,68 +149,97 @@ export class AuthService {
    * Регистрация нового пользователя
    */
   async register(username: string, password: string): Promise<User> {
-    // Проверяем, существует ли пользователь с таким username
-    const [existingUser] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.username, username))
-      .limit(1);
-
-    if (existingUser) {
-      this.logger.warn(`Registration attempt with existing username: ${username}`);
-      throw new ConflictException('Username already exists');
+    // Валидация входных данных
+    if (!username || typeof username !== 'string') {
+      this.logger.error(`Invalid username provided: ${username}`);
+      throw new ConflictException('Invalid username');
     }
 
-    // Генерируем email из username для совместимости с существующей схемой
-    let email = `${username}@chatty.local`;
+    if (!password || typeof password !== 'string') {
+      this.logger.error('Invalid password provided');
+      throw new ConflictException('Invalid password');
+    }
 
-    // Проверяем, существует ли пользователь с таким email (на случай, если кто-то уже зарегистрировался с таким email)
-    const [existingEmail] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
+    const trimmedUsername = username.trim();
 
-    if (existingEmail) {
-      // Если email уже существует, добавляем случайный суффикс
-      email = `${username}_${Date.now()}@chatty.local`;
+    if (trimmedUsername.length < 3) {
+      throw new ConflictException('Username must be at least 3 characters long');
+    }
+
+    this.logger.log(`Attempting to register user: ${trimmedUsername}`);
+
+    // Проверяем, существует ли пользователь с таким username
+    let existingUser;
+    try {
+      const result = await this.db
+        .select()
+        .from(users)
+        .where(eq(users.username, trimmedUsername))
+        .limit(1);
+      existingUser = result[0];
+      this.logger.log(`Username check result for "${trimmedUsername}": ${existingUser ? 'EXISTS' : 'NOT FOUND'}`);
+    } catch (error) {
+      this.logger.error(`Database error while checking username: ${error instanceof Error ? error.message : 'Unknown error'}`, error);
+      throw new ConflictException('Database error while checking username');
+    }
+
+    if (existingUser) {
+      this.logger.warn(`Registration attempt with existing username: ${trimmedUsername} (ID: ${existingUser.id})`);
+      throw new ConflictException('Username already exists');
     }
 
     // Хешируем пароль
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Создаем пользователя
-    const [user] = await this.db
-      .insert(users)
-      .values({
-        username,
-        email,
-        password: hashedPassword,
-      })
-      .returning();
+    this.logger.log(`Creating user with username: ${trimmedUsername}`);
+    
+    try {
+      const [user] = await this.db
+        .insert(users)
+        .values({
+          username: trimmedUsername,
+          password: hashedPassword,
+        })
+        .returning();
 
-    this.logger.log(`User registered: ${username} (${user.id})`);
-    return user;
+      this.logger.log(`User registered successfully: ${trimmedUsername} (${user.id})`);
+      return user;
+    } catch (error: any) {
+      // Обработка ошибок уникальности от PostgreSQL
+      if (error?.code === '23505') {
+        // PostgreSQL unique violation error code
+        if (error?.constraint?.includes('username')) {
+          this.logger.warn(`Username already exists (database constraint): ${trimmedUsername}`);
+          throw new ConflictException('Username already exists');
+        }
+        this.logger.error(`Unique constraint violation: ${error.message}`);
+        throw new ConflictException('User with this username already exists');
+      }
+      
+      this.logger.error(`Error creating user: ${error instanceof Error ? error.message : 'Unknown error'}`, error);
+      throw new ConflictException('Failed to create user');
+    }
   }
 
   /**
-   * Валидация пользователя по email и password
+   * Валидация пользователя по username и password
    */
-  async validateUser(email: string, password: string): Promise<User | null> {
-    const [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
+  async validateUser(username: string, password: string): Promise<User | null> {
+    const [user] = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
 
     if (!user) {
-      this.logger.warn(`Login attempt failed: user not found - ${email}`);
+      this.logger.warn(`Login attempt failed: user not found - ${username}`);
       return null;
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      this.logger.warn(`Login attempt failed: invalid password - ${email}`);
+      this.logger.warn(`Login attempt failed: invalid password - ${username}`);
       return null;
     }
 
-    this.logger.log(`User validated successfully: ${email} (${user.id})`);
+    this.logger.log(`User validated successfully: ${username} (${user.id})`);
     return user;
   }
 
