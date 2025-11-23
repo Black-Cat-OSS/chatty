@@ -21,6 +21,7 @@ interface MessageHistoryItem {
   username: string
   content: string
   createdAt: string
+  payload?: Record<string, unknown>
 }
 
 function ChatContainer({
@@ -59,6 +60,7 @@ function ChatContainer({
           message: msg.content,
           timestamp: msg.createdAt,
           type: 'user' as const,
+          payload: msg.payload,
         }))
         setMessages(formattedMessages)
       } catch (error) {
@@ -76,7 +78,12 @@ function ChatContainer({
     // Получение новых сообщений
     socket.on(
       'message',
-      (data: { username: string; message: string; timestamp?: string }) => {
+      (data: {
+        username: string
+        message: string
+        timestamp?: string
+        payload?: Record<string, unknown>
+      }) => {
         setMessages((prev) => [
           ...prev,
           {
@@ -85,23 +92,32 @@ function ChatContainer({
             message: data.message,
             timestamp: data.timestamp || new Date().toISOString(),
             type: 'user',
+            payload: data.payload,
           },
         ])
       },
     )
 
     // Получение системных сообщений
-    socket.on('system', (data: { message: string; timestamp?: string }) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          message: data.message,
-          timestamp: data.timestamp || new Date().toISOString(),
-          type: 'system',
-        },
-      ])
-    })
+    socket.on(
+      'system',
+      (data: {
+        message: string
+        timestamp?: string
+        payload?: Record<string, unknown>
+      }) => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + Math.random(),
+            message: data.message,
+            timestamp: data.timestamp || new Date().toISOString(),
+            type: 'system',
+            payload: data.payload,
+          },
+        ])
+      },
+    )
 
     // Получение списка пользователей
     socket.on('users', (data: { users?: string[] }) => {
@@ -123,13 +139,17 @@ function ChatContainer({
     }
   }, [socket])
 
-  const handleSendMessage = (message: string) => {
+  const handleSendMessage = (
+    message: string,
+    payload?: Record<string, unknown>,
+  ) => {
     if (socket && message.trim() && room?.id) {
       socket.emit('message', {
         username,
         message: message.trim(),
         room: room.id,
         timestamp: new Date().toISOString(),
+        payload,
       })
     }
   }

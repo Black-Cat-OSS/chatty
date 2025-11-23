@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import './MessageInput.css'
 
 interface MessageInputProps {
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string, payload?: Record<string, unknown>) => void
   disabled: boolean
 }
 

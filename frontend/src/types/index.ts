@@ -18,6 +18,7 @@ export interface Message {
   message: string
   timestamp: string
   type: 'user' | 'system'
+  payload?: Record<string, unknown>
 }
 
 export interface LoginResponse {
