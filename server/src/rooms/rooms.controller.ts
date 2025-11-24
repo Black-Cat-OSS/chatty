@@ -68,13 +68,19 @@ export class RoomsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all rooms' })
+  @ApiOperation({ summary: 'Get all existing rooms' })
   @ApiSecurity('api-key')
   @ApiSecurity('bearer')
-  @ApiResponse({ status: 200, description: 'List of all rooms' })
+  @ApiResponse({ status: 200, description: 'List of all rooms (public only for unauthorized users)' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async findAll() {
-    return this.roomsService.findAll();
+  async findAll(
+    @GetUser() user?: { userId: string; username?: string },
+    @GetApiKey() apiKey?: ApiKey,
+  ) {
+    // Если пользователь авторизован, показываем все комнаты включая приватные
+    // Иначе только публичные
+    const includePrivate = !!(user?.userId || apiKey?.userId);
+    return this.roomsService.findAll(includePrivate);
   }
 
   @Get('my')
@@ -83,11 +89,27 @@ export class RoomsController {
   @ApiSecurity('bearer')
   @ApiResponse({ status: 200, description: 'List of user rooms' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async findMyRooms(@GetUser() user: { userId: string; username?: string }) {
-    if (!user || !user.userId) {
-      return this.roomsService.findAll(); // Если не авторизован, возвращаем все публичные комнаты
+  async findMyRooms(
+    @GetUser() user?: { userId: string; username?: string },
+    @GetApiKey() apiKey?: ApiKey,
+  ) {
+    const userId = user?.userId || apiKey?.userId;
+    if (!userId) {
+      return this.roomsService.findAll(false); // Если не авторизован, возвращаем все публичные комнаты
     }
-    return this.roomsService.findByUserId(user.userId);
+    return this.roomsService.findByUserId(userId);
+  }
+
+  @Get('user/:userId')
+  @ApiOperation({ summary: 'Get all rooms created by a specific user' })
+  @ApiSecurity('api-key')
+  @ApiSecurity('bearer')
+  @ApiParam({ name: 'userId', type: 'string', format: 'uuid', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'List of rooms created by the user' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async findByUserId(@Param('userId') userId: string) {
+    return this.roomsService.findByUserIdOnly(userId);
   }
 
   @Get(':id/messages')
